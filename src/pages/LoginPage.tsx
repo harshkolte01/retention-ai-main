@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, User, KeyRound, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Eye, EyeOff, Mail, Lock, User, KeyRound, Loader2, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { supabase } from '@/integrations/supabase/client';
 import logoImg from '@/assets/logo.png';
 
@@ -20,33 +21,92 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
+  // step 1 = enter email, step 2 = enter OTP, step 3 = set new password, step 4 = done
+  const [resetStep, setResetStep] = useState<1 | 2 | 3 | 4>(1);
   const [resetEmail, setResetEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleForgotPassword = () => {
+  const openForgotDialog = () => {
     setResetEmail(email);
+    setOtpCode('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setResetStep(1);
     setForgotDialogOpen(true);
   };
 
-  const handleSendReset = async () => {
+  const closeForgotDialog = () => {
+    setForgotDialogOpen(false);
+    setTimeout(() => { setResetStep(1); setOtpCode(''); setNewPassword(''); setConfirmNewPassword(''); }, 300);
+  };
+
+  // Step 1 → send OTP to email
+  const handleSendOtp = async () => {
     if (!resetEmail) {
-      toast({ title: 'Enter your email', description: 'Please enter an email address to send the reset link.', variant: 'destructive' });
+      toast({ title: 'Enter your email', variant: 'destructive' });
       return;
     }
     setResetLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
+    const { error } = await supabase.auth.signInWithOtp({
+      email: resetEmail,
+      options: { shouldCreateUser: false },
     });
     setResetLoading(false);
     if (error) {
-      toast({ title: 'Failed to send reset link', description: error.message, variant: 'destructive' });
+      toast({ title: 'Failed to send code', description: error.message, variant: 'destructive' });
       return;
     }
+    setResetStep(2);
+    toast({ title: 'Code sent!', description: `A 6-digit code was sent to ${resetEmail}` });
+  };
+
+  // Step 2 → verify OTP
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 6) {
+      toast({ title: 'Enter the 6-digit code', variant: 'destructive' });
+      return;
+    }
+    setResetLoading(true);
+    const { error } = await supabase.auth.verifyOtp({
+      email: resetEmail,
+      token: otpCode,
+      type: 'email',
+    });
+    setResetLoading(false);
+    if (error) {
+      toast({ title: 'Invalid or expired code', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setResetStep(3);
+  };
+
+  // Step 3 → set new password
+  const handleUpdatePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      toast({ title: 'Password too short', description: 'At least 6 characters required.', variant: 'destructive' });
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      toast({ title: 'Passwords do not match', variant: 'destructive' });
+      return;
+    }
+    setResetLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setResetLoading(false);
+    if (error) {
+      toast({ title: 'Failed to update password', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setResetStep(4);
     setForgotSent(true);
-    setForgotDialogOpen(false);
-    toast({ title: 'Reset link sent!', description: `Check ${resetEmail} for password reset instructions.` });
+    setTimeout(() => closeForgotDialog(), 2000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -124,10 +184,10 @@ export default function LoginPage() {
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={handleForgotPassword}
+                    onClick={openForgotDialog}
                     className="text-xs text-muted-foreground hover:text-primary transition-colors"
                   >
-                    {forgotSent ? 'Reset link sent ✓' : 'Forgot password?'}
+                    {forgotSent ? 'Password reset ✓' : 'Forgot password?'}
                   </button>
                 </div>
               )}
@@ -149,45 +209,149 @@ export default function LoginPage() {
         </div>
       </motion.div>
 
-      {/* Forgot Password Dialog */}
-      <Dialog open={forgotDialogOpen} onOpenChange={setForgotDialogOpen}>
+      {/* Forgot Password Dialog — 3-step OTP flow */}
+      <Dialog open={forgotDialogOpen} onOpenChange={(open) => { if (!open) closeForgotDialog(); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <KeyRound className="h-5 w-5 text-primary" />
+                {resetStep === 4 ? <CheckCircle2 className="h-5 w-5 text-green-500" /> :
+                 resetStep === 3 ? <Lock className="h-5 w-5 text-primary" /> :
+                 resetStep === 2 ? <ShieldCheck className="h-5 w-5 text-primary" /> :
+                 <KeyRound className="h-5 w-5 text-primary" />}
               </div>
-              <DialogTitle className="text-lg">Reset your password</DialogTitle>
+              <DialogTitle className="text-lg">
+                {resetStep === 1 && 'Forgot Password'}
+                {resetStep === 2 && 'Enter Verification Code'}
+                {resetStep === 3 && 'Set New Password'}
+                {resetStep === 4 && 'Password Updated!'}
+              </DialogTitle>
             </div>
             <DialogDescription>
-              Enter the email address associated with your account and we'll send you a link to reset your password.
+              {resetStep === 1 && "Enter your account email and we'll send a 6-digit verification code."}
+              {resetStep === 2 && `We sent a 6-digit code to ${resetEmail}. Enter it below.`}
+              {resetStep === 3 && 'Choose a strong new password for your account.'}
+              {resetStep === 4 && 'Your password has been updated. You can now sign in.'}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2 py-2">
-            <Label htmlFor="reset-email">Email address</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="reset-email"
-                type="email"
-                placeholder="you@example.com"
-                className="pl-10"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-              />
-            </div>
-          </div>
+          <AnimatePresence mode="wait">
+            {resetStep === 1 && (
+              <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-2 py-2">
+                <Label htmlFor="reset-email">Email address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="you@example.com"
+                    className="pl-10"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendOtp()}
+                  />
+                </div>
+              </motion.div>
+            )}
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button onClick={handleSendReset} className="gap-2" disabled={resetLoading}>
-              {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-              Send Reset Link
-            </Button>
-          </DialogFooter>
+            {resetStep === 2 && (
+              <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="py-4 flex flex-col items-center gap-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  Didn't receive it? <button type="button" onClick={handleSendOtp} className="text-primary hover:underline">Resend code</button>
+                </p>
+                <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode}>
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+              </motion.div>
+            )}
+
+            {resetStep === 3 && (
+              <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="new-password"
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      className="pl-10 pr-10"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                    <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="confirm-password"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      className="pl-10 pr-10"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    />
+                    <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {confirmNewPassword && newPassword !== confirmNewPassword && (
+                    <p className="text-xs text-destructive">Passwords do not match</p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {resetStep === 4 && (
+              <motion.div key="step4" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-3 py-6">
+                <CheckCircle2 className="h-16 w-16 text-green-500" />
+                <p className="text-sm text-muted-foreground">Closing automatically…</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {resetStep !== 4 && (
+            <DialogFooter className="gap-2 sm:gap-0">
+              {resetStep > 1 && (
+                <Button variant="outline" onClick={() => setResetStep((s) => (s - 1) as 1 | 2 | 3)} disabled={resetLoading}>
+                  Back
+                </Button>
+              )}
+              {resetStep === 1 && (
+                <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+              )}
+              {resetStep === 1 && (
+                <Button onClick={handleSendOtp} className="gap-2" disabled={resetLoading}>
+                  {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                  Send Code
+                </Button>
+              )}
+              {resetStep === 2 && (
+                <Button onClick={handleVerifyOtp} className="gap-2" disabled={resetLoading || otpCode.length !== 6}>
+                  {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  Verify Code
+                </Button>
+              )}
+              {resetStep === 3 && (
+                <Button onClick={handleUpdatePassword} className="gap-2" disabled={resetLoading}>
+                  {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                  Update Password
+                </Button>
+              )}
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
