@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BarChart3, LogOut, MessageSquare, TrendingDown, TrendingUp, Users, DollarSign,
-  Star, Package, Activity, X, ChevronRight, Download
+  Star, Package, Activity, X, ChevronRight, Upload
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [dataFilter, setDataFilter] = useState<'All' | 'Active' | 'Churned'>('All');
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -258,21 +259,36 @@ export default function DashboardPage() {
     },
   };
 
-  const exportCSV = () => {
-    const filtered = dataFilter === 'All' ? data : data.filter(r => r.churned === dataFilter);
-    const headers = ['customer_id', 'gender', 'age', 'city', 'order_frequency', 'price_inr', 'rating', 'churned', 'delivery_status'];
-    const rows = filtered.map(r => [
-      r.customer_id, r.gender, r.age, r.city, r.order_frequency,
-      (r.price * 83).toFixed(0), r.rating ?? '', r.churned, r.delivery_status,
-    ]);
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `customers_${dataFilter.toLowerCase()}_${filtered.length}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      import('papaparse').then(({ default: Papa }) => {
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: true,
+          complete: (results: { data: Record<string, unknown>[] }) => {
+            const cleaned = results.data
+              .filter((row) => row.customer_id)
+              .map((row) => ({
+                ...row,
+                quantity: Number(row.quantity) || 0,
+                price: Number(row.price) || 0,
+                order_frequency: Number(row.order_frequency) || 0,
+                loyalty_points: Number(row.loyalty_points) || 0,
+                rating: row.rating ? Number(row.rating) : null,
+              })) as import('@/lib/dataset').CustomerRecord[];
+            setData(cleaned);
+            setStats(computeStats(cleaned));
+          },
+        });
+      });
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const summaryCards = [
@@ -397,8 +413,15 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="font-display">Customer Data</CardTitle>
                   <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" className="gap-2" onClick={exportCSV}>
-                      <Download className="h-4 w-4" /> Export CSV
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={importCSV}
+                    />
+                    <Button size="sm" variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}>
+                      <Upload className="h-4 w-4" /> Import CSV
                     </Button>
                     {(['All', 'Active', 'Churned'] as const).map((f) => (
                       <button
