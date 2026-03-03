@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, User, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, KeyRound, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { supabase } from '@/integrations/supabase/client';
 import logoImg from '@/assets/logo.png';
 
 export default function LoginPage() {
@@ -16,17 +17,57 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleForgotPassword = () => {
+    setResetEmail(email);
+    setForgotDialogOpen(true);
+  };
+
+  const handleSendReset = async () => {
+    if (!resetEmail) {
+      toast({ title: 'Enter your email', description: 'Please enter an email address to send the reset link.', variant: 'destructive' });
+      return;
+    }
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setResetLoading(false);
+    if (error) {
+      toast({ title: 'Failed to send reset link', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setForgotSent(true);
+    setForgotDialogOpen(false);
+    toast({ title: 'Reset link sent!', description: `Check ${resetEmail} for password reset instructions.` });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || (isSignup && !name)) {
       toast({ title: 'Please fill all fields', variant: 'destructive' });
       return;
     }
-    toast({ title: isSignup ? 'Account created!' : 'Welcome back!', description: 'Redirecting to dashboard...' });
-    setTimeout(() => navigate('/dashboard'), 800);
+    setLoading(true);
+    if (isSignup) {
+      const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
+      setLoading(false);
+      if (error) { toast({ title: 'Sign up failed', description: error.message, variant: 'destructive' }); return; }
+      toast({ title: 'Account created!', description: 'Check your email to confirm your account, then sign in.' });
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) { toast({ title: 'Sign in failed', description: error.message, variant: 'destructive' }); return; }
+      toast({ title: 'Welcome back!', description: 'Redirecting to dashboard...' });
+      setTimeout(() => navigate('/dashboard'), 800);
+    }
   };
 
   return (
@@ -91,7 +132,8 @@ export default function LoginPage() {
                 </div>
               )}
             </div>
-            <Button type="submit" className="w-full" size="lg">
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {isSignup ? 'Create Account' : 'Sign In'}
             </Button>
           </form>
@@ -141,8 +183,8 @@ export default function LoginPage() {
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleSendReset} className="gap-2">
-              <Mail className="h-4 w-4" />
+            <Button onClick={handleSendReset} className="gap-2" disabled={resetLoading}>
+              {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
               Send Reset Link
             </Button>
           </DialogFooter>
