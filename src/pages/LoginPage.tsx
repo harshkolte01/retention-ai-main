@@ -47,32 +47,63 @@ export default function LoginPage() {
     setTimeout(() => { setResetStep(1); setOtpCode(''); setNewPassword(''); setConfirmNewPassword(''); }, 300);
   };
 
-  // Step 1 → send password-reset OTP email
+  // Step 1 → send password-reset email via Supabase (uses your configured SMTP)
   const handleSendOtp = async () => {
     if (!resetEmail) {
       toast({ title: 'Enter your email', variant: 'destructive' });
       return;
     }
     setResetLoading(true);
+    try {
+      // Try edge function first (Resend), fallback to Supabase auth
+      const res = await supabase.functions.invoke('send-reset-email', {
+        body: { email: resetEmail },
+      });
+      const data = res.data as { error?: string } | null;
+      if (!res.error && !data?.error) {
+        setResetStep(2);
+        toast({ title: 'Code sent! 📧', description: `A 6-digit code was sent to ${resetEmail}. Check your inbox and spam folder.` });
+        return;
+      }
+    } catch {
+      // fallthrough to Supabase auth reset
+    }
+
+    // Fallback: Supabase built-in reset (requires custom SMTP configured in dashboard)
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${window.location.origin}/reset-password`,
     });
     setResetLoading(false);
     if (error) {
-      toast({ title: 'Failed to send code', description: error.message, variant: 'destructive' });
+      toast({ title: 'Failed to send email', description: error.message, variant: 'destructive' });
       return;
     }
     setResetStep(2);
-    toast({ title: 'Code sent!', description: `A 6-digit reset code was sent to ${resetEmail}. Check your inbox (and spam folder).` });
+    toast({ title: 'Reset email sent! 📧', description: `Check ${resetEmail} for a password reset link or code. Also check spam folder.` });
   };
 
-  // Step 2 → verify the 6-digit recovery token from the email
+  // Step 2 → verify OTP (try custom edge function first, then Supabase recovery)
   const handleVerifyOtp = async () => {
     if (otpCode.length !== 6) {
       toast({ title: 'Enter the 6-digit code', variant: 'destructive' });
       return;
     }
     setResetLoading(true);
+    try {
+      const res = await supabase.functions.invoke('verify-reset-otp', {
+        body: { email: resetEmail, otp: otpCode },
+      });
+      const data = res.data as { error?: string } | null;
+      if (!res.error && !data?.error) {
+        setResetStep(3);
+        setResetLoading(false);
+        return;
+      }
+    } catch {
+      // fallthrough
+    }
+
+    // Fallback: Supabase built-in OTP verification
     const { error } = await supabase.auth.verifyOtp({
       email: resetEmail,
       token: otpCode,
@@ -97,6 +128,24 @@ export default function LoginPage() {
       return;
     }
     setResetLoading(true);
+    // Try admin edge function first
+    try {
+      const res = await supabase.functions.invoke('update-password', {
+        body: { email: resetEmail, newPassword },
+      });
+      const data = res.data as { error?: string } | null;
+      if (!res.error && !data?.error) {
+        setResetStep(4);
+        setForgotSent(true);
+        toast({ title: 'Password updated!', description: 'You can now sign in with your new password.' });
+        setTimeout(() => closeForgotDialog(), 2000);
+        setResetLoading(false);
+        return;
+      }
+    } catch {
+      // fallthrough
+    }
+    // Fallback: supabase.auth.updateUser (works when user has active recovery session)
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setResetLoading(false);
     if (error) {
@@ -105,6 +154,7 @@ export default function LoginPage() {
     }
     setResetStep(4);
     setForgotSent(true);
+    toast({ title: 'Password updated!', description: 'You can now sign in with your new password.' });
     setTimeout(() => closeForgotDialog(), 2000);
   };
 
