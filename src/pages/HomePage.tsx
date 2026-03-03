@@ -355,70 +355,64 @@ export default function HomePage() {
                 <Button size="lg" className="gap-2 text-base px-6" onClick={() => navigate('/login')}>
                   Get Started Free <ArrowRight className="h-4 w-4" />
                 </Button>
-                <Button size="lg" variant="outline" className="gap-2 text-base" onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>
-                  <PlayCircle className="h-4 w-4" /> See How It Works
+                <Button size="lg" variant="outline" className="gap-2 text-base" onClick={() => navigate('/dashboard')}>
+                  <PlayCircle className="h-4 w-4" /> Explore Dashboard
                 </Button>
               </div>
 
             </motion.div>
 
-            {/* Right: Dashboard Preview Card */}
+            {/* Right: Professional stat + feature highlights */}
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.7, delay: 0.15 }}
-              className="hidden lg:block"
+              className="hidden lg:flex flex-col gap-5"
             >
-              <div className="relative">
-                {/* Main dashboard mock */}
-                <div className="bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
-                  {/* Top bar */}
-                  <div className="bg-muted/50 border-b border-border px-4 py-3 flex items-center gap-2">
-                    <div className="h-2.5 w-2.5 rounded-full bg-red-400" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-green-400" />
-                    <span className="ml-3 text-xs text-muted-foreground font-mono">FoodRetainAI Dashboard</span>
-                  </div>
-                  {/* Stat mini cards */}
-                  <div className="grid grid-cols-2 gap-3 p-4">
-                    {[
-                      { label: 'Total Customers', value: '6,000', color: 'text-primary', bg: 'bg-primary/10' },
-                      { label: 'Active Retained', value: '3,016', color: 'text-success', bg: 'bg-success/10' },
-                      { label: 'Churned', value: '2,984', color: 'text-destructive', bg: 'bg-destructive/10' },
-                      { label: 'Churn Rate', value: '49.7%', color: 'text-warning', bg: 'bg-warning/10' },
-                    ].map((s) => (
-                      <div key={s.label} className={`${s.bg} rounded-xl p-3`}>
-                        <p className="text-xs text-muted-foreground">{s.label}</p>
-                        <p className={`text-lg font-display font-bold ${s.color}`}>{s.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Fake chart bars */}
-                  <div className="px-4 pb-4">
-                    <p className="text-xs text-muted-foreground mb-2 font-medium">Churn by City</p>
-                    <div className="space-y-1.5">
-                      {[
-                        { city: 'Karachi',   pct: 80, color: 'bg-primary' },
-                        { city: 'Lahore',    pct: 72, color: 'bg-orange-400' },
-                        { city: 'Islamabad', pct: 58, color: 'bg-purple-500' },
-                        { city: 'Peshawar',  pct: 48, color: 'bg-chart-blue' },
-                        { city: 'Multan',    pct: 38, color: 'bg-success' },
-                      ].map((row) => (
-                        <div key={row.city} className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground w-16 shrink-0">{row.city}</span>
-                          <div className="flex-1 bg-muted rounded-full h-2">
-                            <motion.div
-                              className={`h-2 rounded-full ${row.color}`}
-                              initial={{ width: 0 }}
-                              animate={{ width: `${row.pct}%` }}
-                              transition={{ duration: 1.2, delay: 0.8 }}
-                            />
-                          </div>
-                        </div>
-                      ))}
+              {/* Top stat row */}
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: 'Customers Analyzed', value: '6,000+', color: 'text-primary', bg: 'bg-primary/8', border: 'border-primary/20' },
+                  { label: 'Prediction Accuracy', value: '92%', color: 'text-success', bg: 'bg-success/8', border: 'border-success/20' },
+                  { label: 'Churn Rate Detected', value: '49.7%', color: 'text-destructive', bg: 'bg-destructive/8', border: 'border-destructive/20' },
+                  { label: 'ML Models Trained', value: '4 Models', color: 'text-orange-500', bg: 'bg-orange-500/8', border: 'border-orange-500/20' },
+                ].map((s) => (
+                  <motion.div
+                    key={s.label}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.3 }}
+                    className={`${s.bg} border ${s.border} rounded-2xl p-5`}
+                  >
+                    <p className={`text-2xl font-display font-bold ${s.color}`}>{s.value}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{s.label}</p>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Feature highlight cards */}
+              <div className="space-y-3">
+                {[
+                  { icon: Brain, title: 'ML Churn Prediction', desc: 'Random Forest · XGBoost · Decision Tree · Logistic Regression', color: 'text-primary', bg: 'bg-primary/8', border: 'border-primary/20' },
+                  { icon: MessageSquare, title: 'AI Retention Chatbot', desc: 'Gemini-powered · personalised offers · complaint resolution', color: 'text-orange-500', bg: 'bg-orange-500/8', border: 'border-orange-500/20' },
+                  { icon: BarChart3, title: 'Interactive Analytics', desc: '10+ EDA charts · city, age, spend, rating, loyalty breakdown', color: 'text-success', bg: 'bg-success/8', border: 'border-success/20' },
+                ].map((f, i) => (
+                  <motion.div
+                    key={f.title}
+                    initial={{ opacity: 0, x: 16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.5, delay: 0.45 + i * 0.1 }}
+                    className={`flex items-center gap-4 ${f.bg} border ${f.border} rounded-2xl px-5 py-4`}
+                  >
+                    <div className={`h-10 w-10 rounded-xl ${f.bg} border ${f.border} flex items-center justify-center shrink-0`}>
+                      <f.icon className={`h-5 w-5 ${f.color}`} />
                     </div>
-                  </div>
-                </div>
+                    <div>
+                      <p className={`text-sm font-semibold ${f.color}`}>{f.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{f.desc}</p>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
             </motion.div>
           </div>
