@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --background: 30 25% 97%;
+  --foreground: 20 20% 12%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 20 20% 12%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 20% 12%;
+
+  --primary: 16 100% 50%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 20 15% 92%;
+  --secondary-foreground: 20 20% 12%;
+
+  --muted: 30 15% 93%;
+  --muted-foreground: 20 10% 50%;
+
+  --accent: 350 80% 55%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 30 15% 88%;
+  --input: 30 15% 88%;
+  --ring: 16 100% 50%;
+
+  --radius: 0.75rem;
+
+  --success: 142 70% 45%;
+  --success-foreground: 0 0% 100%;
+
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+
+  --chart-active: 142 70% 45%;
+  --chart-churned: 0 84% 60%;
+  --chart-orange: 16 100% 50%;
+  --chart-blue: 210 80% 55%;
+  --chart-purple: 270 60% 55%;
+
+  --sidebar-background: 20 20% 8%;
+  --sidebar-foreground: 30 15% 90%;
+  --sidebar-primary: 16 100% 50%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 20 15% 15%;
+  --sidebar-accent-foreground: 30 15% 90%;
+  --sidebar-border: 20 15% 18%;
+  --sidebar-ring: 16 100% 50%;
+
+  --gradient-hero: linear-gradient(135deg, hsl(16, 100%, 50%) 0%, hsl(350, 80%, 55%) 100%);
+  --gradient-card: linear-gradient(145deg, hsl(0, 0%, 100%) 0%, hsl(30, 25%, 97%) 100%);
+  --gradient-dark: linear-gradient(135deg, hsl(20, 20%, 8%) 0%, hsl(20, 25%, 14%) 100%);
+
+  --shadow-card: 0 4px 24px -4px hsl(16 100% 50% / 0.08);
+  --shadow-elevated: 0 12px 40px -8px hsl(16 100% 50% / 0.15);
+  --shadow-glow: 0 0 40px hsl(16 100% 50% / 0.2);
+
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+.dark {
+  --background: 20 20% 6%;
+  --foreground: 30 15% 93%;
+  --card: 20 18% 10%;
+  --card-foreground: 30 15% 93%;
+  --popover: 20 18% 10%;
+  --popover-foreground: 30 15% 93%;
+  --primary: 16 100% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 20 15% 15%;
+  --secondary-foreground: 30 15% 93%;
+  --muted: 20 12% 16%;
+  --muted-foreground: 30 10% 55%;
+  --accent: 350 80% 58%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 20 12% 18%;
+  --input: 20 12% 18%;
+  --ring: 16 100% 55%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+}
+
+.text-gradient {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  background-image: var(--gradient-hero);
+}
+
+.bg-hero-gradient {
+  background-image: var(--gradient-hero);
+}
+
+.bg-dark-gradient {
+  background-image: var(--gradient-dark);
+}
+
+.shadow-card {
+  box-shadow: var(--shadow-card);
+}
+
+.shadow-elevated {
+  box-shadow: var(--shadow-elevated);
+}
+
+.shadow-glow {
+  box-shadow: var(--shadow-glow);
+}
+
+.glass {
+  background-color: hsl(var(--card) / 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
