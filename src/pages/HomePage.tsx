@@ -190,7 +190,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA Banner */}
+      /* CTA Banner */}
       <section className="py-16 bg-dark-gradient">
         <div className="container mx-auto px-6">
           <motion.div
