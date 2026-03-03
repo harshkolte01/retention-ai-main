@@ -47,16 +47,15 @@ export default function LoginPage() {
     setTimeout(() => { setResetStep(1); setOtpCode(''); setNewPassword(''); setConfirmNewPassword(''); }, 300);
   };
 
-  // Step 1 → send OTP to email
+  // Step 1 → send password-reset OTP email
   const handleSendOtp = async () => {
     if (!resetEmail) {
       toast({ title: 'Enter your email', variant: 'destructive' });
       return;
     }
     setResetLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: resetEmail,
-      options: { shouldCreateUser: false },
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/login`,
     });
     setResetLoading(false);
     if (error) {
@@ -64,10 +63,10 @@ export default function LoginPage() {
       return;
     }
     setResetStep(2);
-    toast({ title: 'Code sent!', description: `A 6-digit code was sent to ${resetEmail}` });
+    toast({ title: 'Code sent!', description: `A 6-digit reset code was sent to ${resetEmail}. Check your inbox (and spam folder).` });
   };
 
-  // Step 2 → verify OTP
+  // Step 2 → verify the 6-digit recovery token from the email
   const handleVerifyOtp = async () => {
     if (otpCode.length !== 6) {
       toast({ title: 'Enter the 6-digit code', variant: 'destructive' });
@@ -77,7 +76,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.verifyOtp({
       email: resetEmail,
       token: otpCode,
-      type: 'email',
+      type: 'recovery',
     });
     setResetLoading(false);
     if (error) {
@@ -229,7 +228,7 @@ export default function LoginPage() {
             </div>
             <DialogDescription>
               {resetStep === 1 && "Enter your account email and we'll send a 6-digit verification code."}
-              {resetStep === 2 && `We sent a 6-digit code to ${resetEmail}. Enter it below.`}
+              {resetStep === 2 && `Enter the 6-digit code from the password reset email sent to ${resetEmail}. Check spam if not in inbox.`}
               {resetStep === 3 && 'Choose a strong new password for your account.'}
               {resetStep === 4 && 'Your password has been updated. You can now sign in.'}
             </DialogDescription>
