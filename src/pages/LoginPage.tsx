@@ -132,7 +132,7 @@ export default function LoginPage() {
     setResetStep(3);
   };
 
-  // Step 3 → set new password
+  // Step 3 → set new password using Supabase Admin API directly
   const handleUpdatePassword = async () => {
     if (!newPassword || newPassword.length < 6) {
       toast({ title: 'Password too short', description: 'At least 6 characters required.', variant: 'destructive' });
@@ -143,34 +143,51 @@ export default function LoginPage() {
       return;
     }
     setResetLoading(true);
-    // Try admin edge function first
     try {
-      const res = await supabase.functions.invoke('update-password', {
-        body: { email: resetEmail, newPassword },
+      // First: find the user by email via Admin API using service role key
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY as string
+        || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
+      // List users and find by email
+      const listRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(resetEmail)}`, {
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+        },
       });
-      const data = res.data as { error?: string } | null;
-      if (!res.error && !data?.error) {
-        setResetStep(4);
-        setForgotSent(true);
-        toast({ title: 'Password updated!', description: 'You can now sign in with your new password.' });
-        setTimeout(() => closeForgotDialog(), 2000);
-        setResetLoading(false);
-        return;
+      const listData = await listRes.json() as { users?: { id: string }[] };
+      const userId = listData?.users?.[0]?.id;
+
+      if (!userId) {
+        throw new Error('No account found with this email. Make sure you have signed up first.');
       }
-    } catch {
-      // fallthrough
+
+      // Update password via Admin API
+      const updateRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      if (!updateRes.ok) {
+        const err = await updateRes.json() as { message?: string };
+        throw new Error(err.message || 'Failed to update password');
+      }
+
+      setResetStep(4);
+      setForgotSent(true);
+      toast({ title: 'Password updated! ✓', description: 'You can now sign in with your new password.' });
+      setTimeout(() => closeForgotDialog(), 2000);
+    } catch (err: unknown) {
+      toast({ title: 'Failed to update password', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setResetLoading(false);
     }
-    // Fallback: supabase.auth.updateUser (works when user has active recovery session)
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setResetLoading(false);
-    if (error) {
-      toast({ title: 'Failed to update password', description: error.message, variant: 'destructive' });
-      return;
-    }
-    setResetStep(4);
-    setForgotSent(true);
-    toast({ title: 'Password updated!', description: 'You can now sign in with your new password.' });
-    setTimeout(() => closeForgotDialog(), 2000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -217,7 +234,7 @@ export default function LoginPage() {
                 <Label htmlFor="name">Full Name</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input id="name" placeholder="Shah Biraj" className="pl-10" value={name} onChange={(e) => setName(e.target.value)} />
+                  <Input id="name" placeholder="Enter your name" className="pl-10" value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
               </div>
             )}
@@ -225,7 +242,7 @@ export default function LoginPage() {
               <Label htmlFor="email">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input id="email" type="email" placeholder="you@example.com" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input id="email" type="email" placeholder="Enter your email" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
@@ -235,7 +252,7 @@ export default function LoginPage() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="********"
                   className="pl-10 pr-10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
