@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import logoImg from '@/assets/logo.png';
 
 export default function LoginPage() {
@@ -15,8 +16,26 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const handleForgotPassword = () => {
+    setResetEmail(email);
+    setForgotDialogOpen(true);
+  };
+
+  const handleSendReset = () => {
+    if (!resetEmail) {
+      toast({ title: 'Enter your email', description: 'Please enter an email address to send the reset link.', variant: 'destructive' });
+      return;
+    }
+    setForgotSent(true);
+    setForgotDialogOpen(false);
+    toast({ title: 'Reset link sent!', description: `Check ${resetEmail} for password reset instructions.` });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +97,17 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {!isSignup && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {forgotSent ? 'Reset link sent ✓' : 'Forgot password?'}
+                  </button>
+                </div>
+              )}
             </div>
             <Button type="submit" className="w-full" size="lg">
               {isSignup ? 'Create Account' : 'Sign In'}
@@ -86,7 +116,7 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center">
             <button
-              onClick={() => setIsSignup(!isSignup)}
+              onClick={() => { setIsSignup(!isSignup); setForgotSent(false); }}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               {isSignup ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
@@ -94,6 +124,48 @@ export default function LoginPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotDialogOpen} onOpenChange={setForgotDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <KeyRound className="h-5 w-5 text-primary" />
+              </div>
+              <DialogTitle className="text-lg">Reset your password</DialogTitle>
+            </div>
+            <DialogDescription>
+              Enter the email address associated with your account and we'll send you a link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <Label htmlFor="reset-email">Email address</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="reset-email"
+                type="email"
+                placeholder="you@example.com"
+                className="pl-10"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleSendReset} className="gap-2">
+              <Mail className="h-4 w-4" />
+              Send Reset Link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
