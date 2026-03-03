@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Brain, BarChart3, MessageSquare, Mail, Github, Linkedin, Sparkles, PlayCircle } from 'lucide-react';
@@ -6,14 +5,11 @@ import { Button } from '@/components/ui/button';
 import logoImg from '@/assets/logo.png';
 import heroImg from '@/assets/hero-bg.jpg';
 import { features, stats } from '@/data/homeData';
-import { mlModels } from '@/data/mlModels';
 import StatCounter from '@/components/StatCounter';
-import MLModelModal from '@/components/MLModelModal';
 
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const [selectedModel, setSelectedModel] = useState<typeof mlModels[0] | null>(null);
 
   return (
     <div className="min-h-screen bg-background">
@@ -124,61 +120,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ML Algorithms */}
-      <section id="ml-models" className="py-20 bg-muted/30">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
-              <Brain className="h-4 w-4" /> Machine Learning
-            </div>
-            <h2 className="text-3xl md:text-4xl font-display font-bold mb-3">ML Models Used</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Four classification algorithms were trained, tuned, and evaluated on 6,000+ real food delivery customer records.
-            </p>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-            {mlModels.map((m, i) => (
-              <motion.div
-                key={m.name}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                viewport={{ once: true }}
-                className="group relative p-6 rounded-2xl bg-card border border-border hover:border-primary/40 hover:shadow-elevated transition-all cursor-pointer"
-                onClick={() => setSelectedModel(m)}
-              >
-                <div className={`h-12 w-12 rounded-xl ${m.bg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <m.icon className={`h-6 w-6 ${m.color}`} />
-                </div>
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-display font-bold text-base">{m.name}</h3>
-                  <span className={`text-sm font-bold ${m.color}`}>{m.accuracy}</span>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{m.desc}</p>
-                <div className="mt-4 w-full bg-muted rounded-full h-1.5">
-                  <motion.div
-                    className={`h-1.5 rounded-full ${m.barColor}`}
-                    initial={{ width: 0 }}
-                    whileInView={{ width: m.accuracy }}
-                    transition={{ duration: 1.2, delay: i * 0.1 + 0.3 }}
-                    viewport={{ once: true }}
-                  />
-                </div>
-                <div className="mt-3 flex items-center gap-1 text-primary text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                  View full details <ArrowRight className="h-3 w-3" />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-          <div className="text-center mt-10">
-            <Button onClick={() => navigate('/dashboard')} className="gap-2">
-              Try Live Churn Prediction <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* About */}
+      {/* About */
       <section id="about" className="py-20 bg-background">
         <div className="container mx-auto px-6">
           <div className="max-w-5xl mx-auto">
@@ -374,7 +316,6 @@ export default function HomePage() {
         </div>
       </footer>
 
-      <MLModelModal model={selectedModel} onClose={() => setSelectedModel(null)} />
     </div>
   );
 }

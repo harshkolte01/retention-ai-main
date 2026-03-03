@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { loadDataset, computeStats, type CustomerRecord, type DatasetStats } from '@/lib/dataset';
+import { loadDataset, computeStats, preprocessRecords, type CustomerRecord, type DatasetStats } from '@/lib/dataset';
 import { ChurnCharts } from '@/components/ChurnCharts';
 import { PredictionForm } from '@/components/PredictionForm';
 import logoImg from '@/assets/logo.png';
@@ -277,16 +277,7 @@ export default function DashboardPage() {
         dynamicTyping: true,
         complete: (results) => {
           try {
-            const cleaned = results.data
-              .filter((row) => row.customer_id)
-              .map((row) => ({
-                ...row,
-                quantity: Number(row.quantity) || 0,
-                price: Number(row.price) || 0,
-                order_frequency: Number(row.order_frequency) || 0,
-                loyalty_points: Number(row.loyalty_points) || 0,
-                rating: row.rating ? Number(row.rating) : null,
-              })) as CustomerRecord[];
+            const cleaned = preprocessRecords(results.data as Record<string, unknown>[]);
             if (cleaned.length === 0) throw new Error('No valid rows found');
             setData(cleaned);
             setStats(computeStats(cleaned));

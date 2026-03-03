@@ -49,27 +49,67 @@ export interface DatasetStats {
 
 const PKR_RATE = 83;
 
+/** Compute the median of a numeric array */
+function medianOf(arr: number[]): number {
+  if (!arr.length) return 3;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * Full preprocessing pipeline applied to any raw record array:
+ *  1. Filter rows without a customer_id
+ *  2. Remove duplicate order_ids (keep first occurrence)
+ *  3. Cast numeric fields
+ *  4. Impute missing / zero ratings with median of known ratings (1-5)
+ */
+export function preprocessRecords(rawRows: Record<string, unknown>[]): CustomerRecord[] {
+  // Step 1 – filter invalid rows
+  const filtered = rawRows.filter((r) => r['customer_id']);
+
+  // Step 2 – deduplicate by order_id
+  const seenOrders = new Set<string>();
+  const deduped = filtered.filter((r) => {
+    const oid = String(r['order_id'] ?? '');
+    if (!oid || seenOrders.has(oid)) return false;
+    seenOrders.add(oid);
+    return true;
+  });
+
+  // Step 3 – cast numeric fields
+  const typed = deduped.map((row) => ({
+    ...row,
+    quantity: Number(row['quantity']) || 0,
+    price: Number(row['price']) || 0,
+    order_frequency: Number(row['order_frequency']) || 0,
+    loyalty_points: Number(row['loyalty_points']) || 0,
+    rating: row['rating'] && Number(row['rating']) > 0 ? Number(row['rating']) : null,
+  })) as CustomerRecord[];
+
+  // Step 4 – impute missing ratings with median of known ratings
+  const knownRatings = typed
+    .map((r) => r.rating)
+    .filter((v): v is number => v !== null && v >= 1 && v <= 5);
+  const ratingMedian = Math.round(medianOf(knownRatings));
+
+  return typed.map((r) => ({
+    ...r,
+    rating: r.rating ?? ratingMedian,
+  }));
+}
+
 export async function loadDataset(): Promise<CustomerRecord[]> {
   const response = await fetch('/data/dataset.csv');
   const text = await response.text();
-  
+
   return new Promise((resolve) => {
-    Papa.parse<CustomerRecord>(text, {
+    Papa.parse<Record<string, unknown>>(text, {
       header: true,
       skipEmptyLines: true,
       dynamicTyping: true,
       complete: (results) => {
-        const cleaned = results.data
-          .filter((row) => row.customer_id)
-          .map((row) => ({
-            ...row,
-            quantity: Number(row.quantity) || 0,
-            price: Number(row.price) || 0,
-            order_frequency: Number(row.order_frequency) || 0,
-            loyalty_points: Number(row.loyalty_points) || 0,
-            rating: row.rating ? Number(row.rating) : null,
-          }));
-        resolve(cleaned);
+        resolve(preprocessRecords(results.data));
       },
     });
   });
