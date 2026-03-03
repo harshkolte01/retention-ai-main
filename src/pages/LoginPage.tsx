@@ -144,40 +144,33 @@ export default function LoginPage() {
     }
     setResetLoading(true);
     try {
-      // First: find the user by email via Admin API using service role key
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY as string
-        || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+      const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY as string;
 
-      // List users and find by email
-      const listRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(resetEmail)}`, {
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-        },
+      if (!serviceKey || serviceKey === 'YOUR_SERVICE_ROLE_KEY_HERE') {
+        throw new Error('Service role key not configured. Add VITE_SUPABASE_SERVICE_KEY to your .env file.');
+      }
+
+      // Use Supabase JS admin client — handles CORS correctly
+      const { createClient } = await import('@supabase/supabase-js');
+      const adminClient = createClient(supabaseUrl, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
       });
-      const listData = await listRes.json() as { users?: { id: string }[] };
-      const userId = listData?.users?.[0]?.id;
 
-      if (!userId) {
+      // Find user by email
+      const { data: listData, error: listError } = await adminClient.auth.admin.listUsers();
+      if (listError) throw new Error(listError.message);
+
+      const user = listData?.users?.find((u) => u.email?.toLowerCase() === resetEmail.toLowerCase());
+      if (!user) {
         throw new Error('No account found with this email. Make sure you have signed up first.');
       }
 
-      // Update password via Admin API
-      const updateRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
-        method: 'PUT',
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ password: newPassword }),
+      // Update password
+      const { error: updateError } = await adminClient.auth.admin.updateUserById(user.id, {
+        password: newPassword,
       });
-
-      if (!updateRes.ok) {
-        const err = await updateRes.json() as { message?: string };
-        throw new Error(err.message || 'Failed to update password');
-      }
+      if (updateError) throw new Error(updateError.message);
 
       setResetStep(4);
       setForgotSent(true);
