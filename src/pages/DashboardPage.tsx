@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BarChart3, LogOut, MessageSquare, TrendingDown, TrendingUp, Users, DollarSign,
-  Star, Package, Activity, X, ChevronRight
+  Star, Package, Activity, X, ChevronRight, Download
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -258,6 +258,23 @@ export default function DashboardPage() {
     },
   };
 
+  const exportCSV = () => {
+    const filtered = dataFilter === 'All' ? data : data.filter(r => r.churned === dataFilter);
+    const headers = ['customer_id', 'gender', 'age', 'city', 'order_frequency', 'price_inr', 'rating', 'churned', 'delivery_status'];
+    const rows = filtered.map(r => [
+      r.customer_id, r.gender, r.age, r.city, r.order_frequency,
+      (r.price * 83).toFixed(0), r.rating ?? '', r.churned, r.delivery_status,
+    ]);
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `customers_${dataFilter.toLowerCase()}_${filtered.length}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const summaryCards = [
     { icon: Users, label: 'Total Customers', value: stats.totalCustomers.toLocaleString(), color: 'text-chart-blue', tabAction: () => goToTab('data', 'All') },
     { icon: TrendingUp, label: 'Active (Retained)', value: stats.activeCustomers.toLocaleString(), color: 'text-success', tabAction: () => goToTab('data', 'Active') },
@@ -380,6 +397,9 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="font-display">Customer Data</CardTitle>
                   <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" className="gap-2" onClick={exportCSV}>
+                      <Download className="h-4 w-4" /> Export CSV
+                    </Button>
                     {(['All', 'Active', 'Churned'] as const).map((f) => (
                       <button
                         key={f}
@@ -410,7 +430,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Showing first 50 of{' '}
+                  Showing first 1,000 of{' '}
                   {dataFilter === 'All'
                     ? data.length
                     : data.filter((r) => r.churned === dataFilter).length}{' '}
@@ -430,7 +450,7 @@ export default function DashboardPage() {
                     </thead>
                     <tbody>
                       {(dataFilter === 'All' ? data : data.filter((r) => r.churned === dataFilter))
-                        .slice(0, 50)
+                        .slice(0, 1000)
                         .map((row, i) => (
                         <tr key={i} className="border-t border-border hover:bg-muted/50 transition-colors">
                           <td className="px-3 py-2 whitespace-nowrap">{row.customer_id}</td>
