@@ -639,28 +639,6 @@ export default function HomePage() {
               </ul>
             </div>
 
-            {/* Legal */}
-            <div>
-              <h4 className="font-semibold text-sm mb-4">Legal</h4>
-              <ul className="space-y-2">
-                <li>
-                  <button
-                    onClick={() => alert('This platform is built for academic and demonstration purposes only. All data is synthetic and does not represent real individuals.')}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-                  >
-                    <ExternalLink className="h-3 w-3" /> Terms of Use
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => alert('FoodRetainAI does not collect or store any personal data. Accounts are stored locally in your browser only.')}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-                  >
-                    <ExternalLink className="h-3 w-3" /> Privacy Policy
-                  </button>
-                </li>
-              </ul>
-            </div>
           </div>
 
           {/* Bottom bar */}
