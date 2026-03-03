@@ -15,8 +15,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const handleForgotPassword = () => {
+    if (!email) {
+      toast({ title: 'Enter your email first', description: 'We need your email to send a reset link.', variant: 'destructive' });
+      return;
+    }
+    setForgotSent(true);
+    toast({ title: 'Reset link sent!', description: `Check ${email} for password reset instructions.` });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +88,17 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {!isSignup && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {forgotSent ? 'Reset link sent ✓' : 'Forgot password?'}
+                  </button>
+                </div>
+              )}
             </div>
             <Button type="submit" className="w-full" size="lg">
               {isSignup ? 'Create Account' : 'Sign In'}
@@ -86,7 +107,7 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center">
             <button
-              onClick={() => setIsSignup(!isSignup)}
+              onClick={() => { setIsSignup(!isSignup); setForgotSent(false); }}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               {isSignup ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
@@ -97,3 +118,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
