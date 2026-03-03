@@ -18,7 +18,7 @@ import logoImg from '@/assets/logo.png';
 // 3. Create an email template with variables: {{to_email}}, {{otp}}, {{app_name}}
 //    → copy Template ID → paste below
 // 4. Account → API Keys → copy Public Key → paste below
-const EMAILJS_SERVICE_ID  = 'service_bovaw1k';   // e.g. 'service_abc123'
+const EMAILJS_SERVICE_ID  = 'service_i418tzj';   // e.g. 'service_abc123'
 const EMAILJS_TEMPLATE_ID = 'template_aj2261b';  // e.g. 'template_xyz456'
 const EMAILJS_PUBLIC_KEY  = 'Z2ewSk8VBhNUZDGoL';   // e.g. 'aBcDeFgHiJkLmNoP'
 // ───────────────────────────────────────────────────────────────────────────
