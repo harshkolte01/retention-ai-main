@@ -339,7 +339,7 @@ export default function HomePage() {
                 <span className="font-display font-bold text-base">FoodRetain<span className="text-primary">AI</span></span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                AI-Powered Customer Intelligence Platform for food delivery businesses. B.E. Computer Engineering Final Year Project — 2026.
+                AI-Powered Customer Intelligence Platform for food delivery businesses.
               </p>
             </div>
 
