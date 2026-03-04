@@ -21,6 +21,19 @@ export interface LocalSession {
 
 // ── Session helpers (synchronous, localStorage-only) ─────────────────────────
 
+/**
+ * Switches the active session to another registered account without
+ * requiring a password (account already exists in localStorage).
+ */
+export function switchAccount(email: string): { error: string | null } {
+  const users = getUsers();
+  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  if (!user) return { error: 'Account not found.' };
+  const session: LocalSession = { id: user.id, email: user.email, name: user.name };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  return { error: null };
+}
+
 export function getSession(): LocalSession | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);

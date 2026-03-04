@@ -6,7 +6,7 @@ import {
   Star, Package, Activity, X, ChevronRight, Upload, Brain, FileBarChart2,
   LayoutDashboard, ClipboardList, Target, Lightbulb, AlertCircle, CheckCircle2,
   TrendingUp as TrendUp, ArrowUpRight, ArrowDownRight, Download, Menu,
-  Trash2, AlertTriangle, Shield,
+  Trash2, AlertTriangle, Shield, UserPlus,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { getAllUsers, deleteUser, getSession, type LocalUser } from '@/lib/localAuth';
+import { getAllUsers, deleteUser, signOut, switchAccount, getSession, type LocalUser } from '@/lib/localAuth';
 import { loadDataset, computeStats, preprocessRecords, type CustomerRecord, type DatasetStats } from '@/lib/dataset';
 import { ChurnCharts } from '@/components/ChurnCharts';
 import { PredictionForm } from '@/components/PredictionForm';
@@ -39,12 +39,12 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState<LocalUser[]>([]);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<LocalUser | null>(null);
+  const [session, setSession] = useState(() => getSession());
   const tabsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const session = getSession();
   const currentInitials = (session?.name ?? 'U')
     .split(' ')
     .map((w) => w[0]?.toUpperCase() ?? '')
@@ -375,7 +375,10 @@ const refreshAccounts = useCallback(async () => {
       action: 'Partner with faster delivery services; set strict SLA targets.',
     },
     {
-      icon: DollarSign, color: 'text-green-600', bg: 'bg-green-50 border-green-200',
+      icon: ({ className }: { className?: string }) => (
+        <span className={`font-bold leading-none inline-flex items-center justify-center ${className ?? ''}`}>₹</span>
+      ),
+      color: 'text-green-600', bg: 'bg-green-50 border-green-200',
       title: `High spenders (₹75K+) have ${highSpendRetention}% retention rate`,
       detail: 'Premium customers show strong loyalty. Invest in VIP programs to retain high-value segments.',
       action: 'Launch exclusive VIP tier with priority support & perks.',
@@ -461,10 +464,23 @@ const refreshAccounts = useCallback(async () => {
                     return (
                       <div
                         key={acc.id}
-                        className="flex items-center gap-3 px-4 py-2.5 group hover:bg-muted/40 transition-colors"
+                        onClick={() => {
+                          if (isCurrent) return;
+                          const { error } = switchAccount(acc.email);
+                          if (!error) {
+                            setSession(getSession());
+                            setAccountsOpen(false);
+                            toast({ title: `Switched to ${acc.name}`, description: acc.email });
+                          }
+                        }}
+                        className={`flex items-center gap-3 px-4 py-2.5 group transition-colors ${
+                          isCurrent
+                            ? 'cursor-default'
+                            : 'cursor-pointer hover:bg-primary/8 active:bg-primary/15'
+                        }`}
                       >
                         <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                          isCurrent ? 'bg-primary text-white' : 'bg-primary/10 text-primary'
+                          isCurrent ? 'bg-primary text-white' : 'bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors'
                         }`}>
                           {ini || '?'}
                         </div>
@@ -474,9 +490,14 @@ const refreshAccounts = useCallback(async () => {
                           </p>
                           <p className="text-xs text-muted-foreground truncate">{acc.email}</p>
                         </div>
+                        {!isCurrent && (
+                          <span className="text-[10px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mr-1">
+                            Switch
+                          </span>
+                        )}
                         <button
                           type="button"
-                          onClick={() => { setDeleteTarget(acc); setAccountsOpen(false); }}
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(acc); setAccountsOpen(false); }}
                           title="Delete account"
                           className="flex-shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
                         >
@@ -487,11 +508,26 @@ const refreshAccounts = useCallback(async () => {
                   })}
                 </div>
 
-                {/* Footer: logout */}
-                <div className="border-t border-border p-2">
+                {/* Footer: add account + sign out */}
+                <div className="border-t border-border p-2 space-y-0.5">
                   <button
                     type="button"
-                    onClick={() => { setAccountsOpen(false); navigate('/'); }}
+                    onClick={() => {
+                      setAccountsOpen(false);
+                      navigate('/login');
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-primary hover:bg-primary/8 transition-colors"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Add another account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountsOpen(false);
+                      signOut();
+                      navigate('/');
+                    }}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                   >
                     <LogOut className="h-4 w-4" />
