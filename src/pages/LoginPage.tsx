@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, User, KeyRound, Loader2, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, KeyRound, Loader2, ShieldCheck, CheckCircle2, Trash2, Users, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import emailjs from '@emailjs/browser';
-import { signIn, signUp, updatePassword as localUpdatePassword } from '@/lib/localAuth';
+import { signIn, signUp, updatePassword as localUpdatePassword, getAllUsers, deleteUser, type LocalUser } from '@/lib/localAuth';
 import logoImg from '@/assets/logo.png';
 
 // ── EmailJS config ──────────────────────────────────────────────────────────
@@ -42,8 +43,19 @@ export default function LoginPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [accounts, setAccounts] = useState<LocalUser[]>([]);
+  const [showAccounts, setShowAccounts] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<LocalUser | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const refreshAccounts = useCallback(() => {
+    setAccounts(getAllUsers());
+  }, []);
+
+  useEffect(() => {
+    refreshAccounts();
+  }, [refreshAccounts]);
 
   const openForgotDialog = () => {
     setResetEmail(email);
@@ -170,12 +182,15 @@ export default function LoginPage() {
       setLoading(false);
       if (error) { toast({ title: 'Sign up failed', description: error, variant: 'destructive' }); return; }
       toast({ title: 'Account created!', description: 'You can now sign in with your credentials.' });
+      refreshAccounts();
+      setShowAccounts(true);
       setIsSignup(false);
     } else {
       const { error } = signIn(email, password);
       setLoading(false);
       if (error) { toast({ title: 'Sign in failed', description: error, variant: 'destructive' }); return; }
       toast({ title: 'Welcome back!', description: 'Redirecting to dashboard...' });
+      refreshAccounts();
       setTimeout(() => navigate('/dashboard'), 800);
     }
   };
@@ -257,7 +272,131 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
+
+        {/* ── Registered Accounts Panel ─────────────────────────── */}
+        {accounts.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mt-5 bg-card rounded-2xl shadow-elevated border border-border overflow-hidden"
+          >
+            {/* Header / toggle */}
+            <button
+              type="button"
+              onClick={() => setShowAccounts((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Users className="h-4 w-4 text-primary" />
+                <span>Registered Accounts</span>
+                <span className="ml-1 bg-primary/10 text-primary text-xs font-bold px-2 py-0.5 rounded-full">
+                  {accounts.length}
+                </span>
+              </div>
+              {showAccounts
+                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+
+            {/* Account list */}
+            <AnimatePresence initial={false}>
+              {showAccounts && (
+                <motion.ul
+                  key="accounts-list"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden divide-y divide-border"
+                >
+                  {accounts.map((acc) => {
+                    const initials = acc.name
+                      .split(' ')
+                      .map((w) => w[0]?.toUpperCase() ?? '')
+                      .slice(0, 2)
+                      .join('');
+                    return (
+                      <motion.li
+                        key={acc.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 8 }}
+                        className="flex items-center gap-3 px-5 py-3 group hover:bg-muted/30 transition-colors"
+                      >
+                        {/* Avatar */}
+                        <div className="flex-shrink-0 h-9 w-9 rounded-full bg-primary/15 flex items-center justify-center text-sm font-bold text-primary">
+                          {initials || '?'}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{acc.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{acc.email}</p>
+                        </div>
+
+                        {/* Created date */}
+                        <span className="text-xs text-muted-foreground hidden sm:block flex-shrink-0">
+                          {new Date(acc.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(acc)}
+                          title="Delete account"
+                          className="flex-shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </motion.li>
+                    );
+                  })}
+                </motion.ul>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
       </motion.div>
+
+      {/* ── Delete Account Confirmation ────────────────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              <AlertDialogTitle>Delete Account Permanently?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{deleteTarget?.name}</strong>{' '}
+              (<span className="font-mono text-xs">{deleteTarget?.email}</span>) and all associated data.
+              This action <strong>cannot be undone</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!deleteTarget) return;
+                const { error } = deleteUser(deleteTarget.email);
+                if (error) {
+                  toast({ title: 'Delete failed', description: error, variant: 'destructive' });
+                } else {
+                  toast({ title: 'Account deleted', description: `${deleteTarget.name} has been removed.` });
+                  refreshAccounts();
+                }
+                setDeleteTarget(null);
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Forgot Password Dialog — 3-step OTP flow */}
       <Dialog open={forgotDialogOpen} onOpenChange={(open) => { if (!open) closeForgotDialog(); }}>

@@ -95,3 +95,32 @@ export function updatePassword(
   saveUsers(users);
   return { error: null };
 }
+
+/** Returns every registered account (for the accounts panel on the login page). */
+export function getAllUsers(): LocalUser[] {
+  return getUsers();
+}
+
+/**
+ * Permanently deletes a user account.
+ * Also signs them out if they are the current session user.
+ */
+export function deleteUser(email: string): { error: string | null } {
+  const users = getUsers();
+  const newUsers = users.filter((u) => u.email.toLowerCase() !== email.toLowerCase());
+  if (newUsers.length === users.length) {
+    return { error: 'No account found with this email.' };
+  }
+  saveUsers(newUsers);
+  // If the deleted account is currently logged-in, clear the session
+  const session = localStorage.getItem(SESSION_KEY);
+  if (session) {
+    try {
+      const parsed = JSON.parse(session) as LocalSession;
+      if (parsed.email.toLowerCase() === email.toLowerCase()) {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    } catch { /* ignore */ }
+  }
+  return { error: null };
+}
