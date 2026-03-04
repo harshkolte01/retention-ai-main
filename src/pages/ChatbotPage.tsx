@@ -7,6 +7,9 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import logoImg from '@/assets/logo.png';
+import { supabase } from '@/integrations/supabase/client';
+import { getSession } from '@/lib/localAuth';
+import { createChatCompletionStream } from '@/lib/supabaseFunctions';
 
 interface Message {
   id: string;
@@ -17,8 +20,6 @@ interface Message {
   file?: { name: string; url: string };
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-
 async function streamChat({
   messages,
   onDelta,
@@ -28,22 +29,8 @@ async function streamChat({
   onDelta: (text: string) => void;
   onDone: () => void;
 }) {
-  const resp = await fetch(CHAT_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-    },
-    body: JSON.stringify({ messages }),
-  });
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(err.error || `HTTP ${resp.status}`);
-  }
-  if (!resp.body) throw new Error("No response body");
-
-  const reader = resp.body.getReader();
+  const stream = await createChatCompletionStream(messages);
+  const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buf = "";
   let done = false;
@@ -88,7 +75,23 @@ export default function ChatbotPage() {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const { toast } = useToast();
+
+  // Create a Supabase chat_session row when the page mounts
+  useEffect(() => {
+    const userSession = getSession();
+    if (!userSession) return;
+    supabase
+      .from('chat_sessions')
+      .insert({ user_email: userSession.email, title: 'Retention Chat' })
+      .select('id')
+      .single()
+      .then(({ data, error }) => {
+        if (error) console.error('Failed to create chat session:', error);
+        else if (data) sessionIdRef.current = data.id;
+      });
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -130,7 +133,16 @@ export default function ChatbotPage() {
       await streamChat({
         messages: chatHistory,
         onDelta: upsertAssistant,
-        onDone: () => setIsTyping(false),
+        onDone: () => {
+          setIsTyping(false);
+          // Persist both messages to Supabase (fire-and-forget)
+          if (sessionIdRef.current) {
+            supabase.from('chat_messages').insert([
+              { session_id: sessionIdRef.current, role: 'user' as const, content: userMsg.content },
+              { session_id: sessionIdRef.current, role: 'assistant' as const, content: assistantSoFar },
+            ]).then(({ error }) => { if (error) console.error('Failed to save messages:', error); });
+          }
+        },
       });
     } catch (e: any) {
       console.error(e);

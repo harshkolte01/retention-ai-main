@@ -51,7 +51,10 @@ export default function DashboardPage() {
     .slice(0, 2)
     .join('');
 
-  const refreshAccounts = useCallback(() => setAccounts(getAllUsers()), []);
+const refreshAccounts = useCallback(async () => {
+    const users = await getAllUsers();
+    setAccounts(users);
+  }, []);
 
   useEffect(() => {
     loadDataset().then((records) => {
@@ -463,7 +466,7 @@ export default function DashboardPage() {
                         key={acc.id}
                         onClick={() => {
                           if (isCurrent) return;
-                          const { error } = switchAccount(acc.email);
+                          const { error } = switchAccount(acc);
                           if (!error) {
                             setSession(getSession());
                             setAccountsOpen(false);
@@ -557,9 +560,9 @@ export default function DashboardPage() {
             <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
+              onClick={async () => {
                 if (!deleteTarget) return;
-                const { error } = deleteUser(deleteTarget.email);
+                const { error } = await deleteUser(deleteTarget.email);
                 if (error) {
                   toast({ title: 'Delete failed', description: error, variant: 'destructive' });
                 } else {

@@ -7,14 +7,169 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
-  }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          id: string
+          email: string
+          name: string
+          password_hash: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          email: string
+          name?: string
+          password_hash?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          name?: string
+          password_hash?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_sessions: {
+        Row: {
+          id: string
+          user_email: string
+          title: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_email: string
+          title?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_email?: string
+          title?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          id: string
+          session_id: string
+          role: 'user' | 'assistant'
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          role: 'user' | 'assistant'
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          role?: 'user' | 'assistant'
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'chat_messages_session_id_fkey'
+            columns: ['session_id']
+            isOneToOne: false
+            referencedRelation: 'chat_sessions'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      churn_predictions: {
+        Row: {
+          id: string
+          user_email: string
+          gender: string | null
+          age: string | null
+          city: string | null
+          order_frequency: number | null
+          price: number | null
+          loyalty_points: number | null
+          rating: number | null
+          delivery_status: string | null
+          payment_method: string | null
+          category: string | null
+          prediction: 'Active' | 'Inactive'
+          confidence: number | null
+          model_used: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_email: string
+          gender?: string | null
+          age?: string | null
+          city?: string | null
+          order_frequency?: number | null
+          price?: number | null
+          loyalty_points?: number | null
+          rating?: number | null
+          delivery_status?: string | null
+          payment_method?: string | null
+          category?: string | null
+          prediction: 'Active' | 'Inactive'
+          confidence?: number | null
+          model_used?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_email?: string
+          gender?: string | null
+          age?: string | null
+          city?: string | null
+          order_frequency?: number | null
+          price?: number | null
+          loyalty_points?: number | null
+          rating?: number | null
+          delivery_status?: string | null
+          payment_method?: string | null
+          category?: string | null
+          prediction?: 'Active' | 'Inactive'
+          confidence?: number | null
+          model_used?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      password_reset_otps: {
+        Row: {
+          email: string
+          otp: string
+          expires_at: string
+          created_at: string | null
+        }
+        Insert: {
+          email: string
+          otp: string
+          expires_at: string
+          created_at?: string | null
+        }
+        Update: {
+          email?: string
+          otp?: string
+          expires_at?: string
+          created_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +178,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      message_role: 'user' | 'assistant'
+      churn_result: 'Active' | 'Inactive'
     }
     CompositeTypes: {
       [_ in never]: never

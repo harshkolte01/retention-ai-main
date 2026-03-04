@@ -1,13 +1,14 @@
-// Local storage-based auth — no backend required
-// Users and sessions are stored in the browser's localStorage
+// Supabase-backed auth — profiles are stored in the `profiles` DB table.
+// Session (logged-in user info) is cached in localStorage for instant synchronous reads.
 
-const USERS_KEY = 'localAuth_users';
+import { supabase } from '@/integrations/supabase/client';
+
 const SESSION_KEY = 'localAuth_session';
 
 export interface LocalUser {
   id: string;
   email: string;
-  password: string; // stored as-is (demo only)
+  password: string; // password_hash field (plain text in demo)
   name: string;
   createdAt: string;
 }
@@ -18,69 +19,13 @@ export interface LocalSession {
   name: string;
 }
 
-function getUsers(): LocalUser[] {
-  try {
-    return JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function saveUsers(users: LocalUser[]): void {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-
-export function signUp(
-  email: string,
-  password: string,
-  name: string
-): { error: string | null } {
-  const users = getUsers();
-  const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (existing) {
-    return { error: 'An account with this email already exists.' };
-  }
-  const newUser: LocalUser = {
-    id: crypto.randomUUID(),
-    email: email.toLowerCase(),
-    password,
-    name,
-    createdAt: new Date().toISOString(),
-  };
-  users.push(newUser);
-  saveUsers(users);
-  return { error: null };
-}
-
-export function signIn(
-  email: string,
-  password: string
-): { user: LocalSession | null; error: string | null } {
-  const users = getUsers();
-  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (!user) {
-    return { user: null, error: 'No account found with this email.' };
-  }
-  if (user.password !== password) {
-    return { user: null, error: 'Incorrect password.' };
-  }
-  const session: LocalSession = { id: user.id, email: user.email, name: user.name };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  return { user: session, error: null };
-}
-
-export function signOut(): void {
-  localStorage.removeItem(SESSION_KEY);
-}
+// ── Session helpers (synchronous, localStorage-only) ─────────────────────────
 
 /**
- * Switches the active session to another registered account without
- * requiring a password (account already exists in localStorage).
+ * Switches the active session to another registered account.
+ * Accepts the user object directly (already loaded from DB by the caller).
  */
-export function switchAccount(email: string): { error: string | null } {
-  const users = getUsers();
-  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (!user) return { error: 'Account not found.' };
+export function switchAccount(user: Pick<LocalUser, 'id' | 'email' | 'name'>): { error: string | null } {
   const session: LocalSession = { id: user.id, email: user.email, name: user.name };
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   return { error: null };
@@ -95,45 +40,110 @@ export function getSession(): LocalSession | null {
   }
 }
 
-export function updatePassword(
+export function signOut(): void {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+// ── Auth (async, Supabase-backed) ────────────────────────────────────────────
+
+/** Create a new account. Stores the profile in the `profiles` table. */
+export async function signUp(
   email: string,
-  newPassword: string
-): { error: string | null } {
-  const users = getUsers();
-  const idx = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (idx === -1) {
-    return { error: 'No account found with this email.' };
+  password: string,
+  name: string,
+): Promise<{ error: string | null }> {
+  const normalised = email.toLowerCase().trim();
+
+  // Check for existing account first
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('email', normalised)
+    .maybeSingle();
+
+  if (existing) {
+    return { error: 'An account with this email already exists.' };
   }
-  users[idx].password = newPassword;
-  saveUsers(users);
+
+  const { error } = await supabase
+    .from('profiles')
+    .insert({ email: normalised, name: name.trim(), password_hash: password });
+
+  if (error) return { error: error.message };
   return { error: null };
 }
 
-/** Returns every registered account (for the accounts panel on the login page). */
-export function getAllUsers(): LocalUser[] {
-  return getUsers();
+/** Sign in: validates credentials against the `profiles` table. */
+export async function signIn(
+  email: string,
+  password: string,
+): Promise<{ user: LocalSession | null; error: string | null }> {
+  const normalised = email.toLowerCase().trim();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, name, password_hash')
+    .eq('email', normalised)
+    .maybeSingle();
+
+  if (error) return { user: null, error: error.message };
+  if (!data) return { user: null, error: 'No account found with this email.' };
+  if (data.password_hash !== password) return { user: null, error: 'Incorrect password.' };
+
+  const session: LocalSession = { id: data.id, email: data.email, name: data.name };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  return { user: session, error: null };
+}
+
+/** Update password in the `profiles` table. */
+export async function updatePassword(
+  email: string,
+  newPassword: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ password_hash: newPassword })
+    .eq('email', email.toLowerCase().trim());
+
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
+// ── Admin helpers (async, Supabase-backed) ────────────────────────────────────
+
+/** Returns every registered account (for the admin accounts panel). */
+export async function getAllUsers(): Promise<LocalUser[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, name, password_hash, created_at')
+    .order('created_at', { ascending: true });
+
+  if (error || !data) return [];
+  return data.map((u) => ({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    password: u.password_hash,
+    createdAt: u.created_at,
+  }));
 }
 
 /**
- * Permanently deletes a user account.
- * Also signs them out if they are the current session user.
+ * Permanently deletes a user account from the database.
+ * Also clears the session if the deleted account is currently logged-in.
  */
-export function deleteUser(email: string): { error: string | null } {
-  const users = getUsers();
-  const newUsers = users.filter((u) => u.email.toLowerCase() !== email.toLowerCase());
-  if (newUsers.length === users.length) {
-    return { error: 'No account found with this email.' };
-  }
-  saveUsers(newUsers);
-  // If the deleted account is currently logged-in, clear the session
-  const session = localStorage.getItem(SESSION_KEY);
-  if (session) {
-    try {
-      const parsed = JSON.parse(session) as LocalSession;
-      if (parsed.email.toLowerCase() === email.toLowerCase()) {
-        localStorage.removeItem(SESSION_KEY);
-      }
-    } catch { /* ignore */ }
+export async function deleteUser(email: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('email', email.toLowerCase().trim());
+
+  if (error) return { error: error.message };
+
+  // Clear session if deleted account is active
+  const session = getSession();
+  if (session?.email.toLowerCase() === email.toLowerCase()) {
+    localStorage.removeItem(SESSION_KEY);
   }
   return { error: null };
 }

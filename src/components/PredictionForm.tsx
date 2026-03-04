@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { predictChurn } from '@/lib/dataset';
+import { supabase } from '@/integrations/supabase/client';
+import { getSession } from '@/lib/localAuth';
 
 type PredictResult = ReturnType<typeof predictChurn>;
 
@@ -68,8 +70,24 @@ export function PredictionForm() {
     setRunning(true);
     const ag = ageGroup.includes('Senior') ? 'Senior' : 'Adult';
     setTimeout(() => {
-      setResult(predictChurn(orders, spend, rating[0], delay, loyaltyPoints, ag));
+      const res = predictChurn(orders, spend, rating[0], delay, loyaltyPoints, ag);
+      setResult(res);
       setRunning(false);
+
+      // Persist prediction to Supabase churn_predictions table
+      const userSession = getSession();
+      if (userSession) {
+        supabase.from('churn_predictions').insert({
+          user_email: userSession.email,
+          order_frequency: orders,
+          price: spend,
+          rating: rating[0],
+          loyalty_points: loyaltyPoints,
+          prediction: (res.riskLevel === 'LOW' ? 'Active' : 'Inactive') as 'Active' | 'Inactive',
+          confidence: res.confidence,
+          model_used: 'Rule-Based Ensemble',
+        }).then(({ error }) => { if (error) console.error('Failed to save prediction:', error); });
+      }
     }, 600);
   };
 

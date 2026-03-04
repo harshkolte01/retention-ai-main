@@ -8,19 +8,11 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import emailjs from '@emailjs/browser';
 import { signIn, signUp, updatePassword as localUpdatePassword } from '@/lib/localAuth';
+import { sendResetEmail, verifyResetOtp } from '@/lib/supabaseFunctions';
 import logoImg from '@/assets/logo.png';
 
-// ── EmailJS config ──────────────────────────────────────────────────────────
-// 1. Sign up free at https://emailjs.com
-// 2. Add a Gmail service  → copy Service ID  → paste below
-// 3. Create an email template with variables: {{to_email}}, {{otp}}, {{app_name}}
-//    → copy Template ID → paste below
-// 4. Account → API Keys → copy Public Key → paste below
-const EMAILJS_SERVICE_ID  = 'service_i418tzj';   // e.g. 'service_abc123'
-const EMAILJS_TEMPLATE_ID = 'template_aj2261b';  // e.g. 'template_xyz456'
-const EMAILJS_PUBLIC_KEY  = 'Z2ewSk8VBhNUZDGoL';   // e.g. 'aBcDeFgHiJkLmNoP'
+// ── Supabase Edge Function endpoints ──────────────────────────────────────
 // ───────────────────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
@@ -59,7 +51,7 @@ export default function LoginPage() {
     setTimeout(() => { setResetStep(1); setOtpCode(''); setNewPassword(''); setConfirmNewPassword(''); }, 300);
   };
 
-  // Step 1 → generate OTP client-side and send via EmailJS (real email, no backend)
+  // Step 1 → call send-reset-email Edge Function (generates OTP, stores in DB, emails via Resend)
   const handleSendOtp = async () => {
     if (!resetEmail) {
       toast({ title: 'Enter your email', variant: 'destructive' });
@@ -67,32 +59,13 @@ export default function LoginPage() {
     }
     setResetLoading(true);
     try {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      // Store OTP in sessionStorage with 10-min expiry
-      sessionStorage.setItem('reset_otp', JSON.stringify({
-        otp,
-        email: resetEmail,
-        expires: Date.now() + 10 * 60 * 1000,
-      }));
-
-      await emailjs.send(
-        EMAILJS_SERVICE_ID,
-        EMAILJS_TEMPLATE_ID,
-        {
-          to_email: resetEmail,
-          otp,
-          app_name: 'FoodRetainAI',
-        },
-        EMAILJS_PUBLIC_KEY
-      );
-
+      await sendResetEmail(resetEmail);
       setResetStep(2);
       toast({ title: 'Code sent! 📧', description: `A 6-digit code was sent to ${resetEmail}. Check your inbox and spam folder.` });
     } catch (err: unknown) {
-      const msg = (err as { text?: string })?.text || (err as Error)?.message || 'Unknown error';
       toast({
         title: 'Failed to send email',
-        description: `EmailJS error: ${msg}. Make sure EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID and EMAILJS_PUBLIC_KEY are configured in LoginPage.tsx`,
+        description: (err as Error)?.message || 'Unknown error',
         variant: 'destructive',
       });
     } finally {
@@ -100,39 +73,24 @@ export default function LoginPage() {
     }
   };
 
-  // Step 2 → verify against OTP stored in sessionStorage
+  // Step 2 → call verify-reset-otp Edge Function (validates OTP from DB, deletes it on success)
   const handleVerifyOtp = async () => {
     if (otpCode.length !== 6) {
       toast({ title: 'Enter the 6-digit code', variant: 'destructive' });
       return;
     }
-    const raw = sessionStorage.getItem('reset_otp');
-    if (!raw) {
-      toast({ title: 'Session expired', description: 'Please request a new code.', variant: 'destructive' });
-      setResetStep(1);
-      return;
+    setResetLoading(true);
+    try {
+      await verifyResetOtp(resetEmail, otpCode);
+      setResetStep(3);
+    } catch (err: unknown) {
+      toast({ title: 'Verification failed', description: (err as Error)?.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setResetLoading(false);
     }
-    const { otp, email, expires } = JSON.parse(raw) as { otp: string; email: string; expires: number };
-    if (Date.now() > expires) {
-      sessionStorage.removeItem('reset_otp');
-      toast({ title: 'Code expired', description: 'Please request a new code.', variant: 'destructive' });
-      setResetStep(1);
-      return;
-    }
-    if (email !== resetEmail) {
-      toast({ title: 'Email mismatch', description: 'Please restart the process.', variant: 'destructive' });
-      setResetStep(1);
-      return;
-    }
-    if (otp !== otpCode) {
-      toast({ title: 'Incorrect code', description: 'Double-check the code in your email.', variant: 'destructive' });
-      return;
-    }
-    sessionStorage.removeItem('reset_otp');
-    setResetStep(3);
   };
 
-  // Step 3 → set new password using Supabase Admin API directly
+  // Step 3 → update password in Supabase `profiles` table directly
   const handleUpdatePassword = async () => {
     if (!newPassword || newPassword.length < 6) {
       toast({ title: 'Password too short', description: 'At least 6 characters required.', variant: 'destructive' });
@@ -144,7 +102,7 @@ export default function LoginPage() {
     }
     setResetLoading(true);
     try {
-      const { error } = localUpdatePassword(resetEmail, newPassword);
+      const { error } = await localUpdatePassword(resetEmail, newPassword);
       if (error) throw new Error(error);
 
       setResetStep(4);
@@ -166,13 +124,13 @@ export default function LoginPage() {
     }
     setLoading(true);
     if (isSignup) {
-      const { error } = signUp(email, password, name);
+      const { error } = await signUp(email, password, name);
       setLoading(false);
       if (error) { toast({ title: 'Sign up failed', description: error, variant: 'destructive' }); return; }
       toast({ title: 'Account created!', description: 'You can now sign in with your credentials.' });
       setIsSignup(false);
     } else {
-      const { error } = signIn(email, password);
+      const { error } = await signIn(email, password);
       setLoading(false);
       if (error) { toast({ title: 'Sign in failed', description: error, variant: 'destructive' }); return; }
       toast({ title: 'Welcome back!', description: 'Redirecting to dashboard...' });
