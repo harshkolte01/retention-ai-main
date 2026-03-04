@@ -466,7 +466,7 @@ const refreshAccounts = useCallback(async () => {
                         key={acc.id}
                         onClick={() => {
                           if (isCurrent) return;
-                          const { error } = switchAccount(acc.email);
+                          const { error } = switchAccount(acc);
                           if (!error) {
                             setSession(getSession());
                             setAccountsOpen(false);
