@@ -6,7 +6,7 @@ import {
   Star, Package, Activity, X, ChevronRight, Upload, Brain, FileBarChart2,
   LayoutDashboard, ClipboardList, Target, Lightbulb, AlertCircle, CheckCircle2,
   TrendingUp as TrendUp, ArrowUpRight, ArrowDownRight, Download, Menu,
-  Trash2, AlertTriangle, Shield,
+  Trash2, AlertTriangle, Shield, UserPlus,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -505,8 +505,19 @@ export default function DashboardPage() {
                   })}
                 </div>
 
-                {/* Footer: sign out */}
-                <div className="border-t border-border p-2">
+                {/* Footer: add account + sign out */}
+                <div className="border-t border-border p-2 space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountsOpen(false);
+                      navigate('/login');
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-primary hover:bg-primary/8 transition-colors"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Add another account
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
