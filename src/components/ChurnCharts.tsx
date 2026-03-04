@@ -49,10 +49,6 @@ export function ChurnCharts({ stats }: { stats: DatasetStats }) {
     .slice(0, 10)
     .map(([city, orders]) => ({ city, Orders: orders }));
 
-  const revenueByStatusData = Object.entries(stats.revenueByDeliveryStatus)
-    .sort((a, b) => b[1] - a[1])
-    .map(([status, rev]) => ({ status, Revenue: Math.round(rev / 1000) })); // in ₹K
-
   const ratingHistData = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((r) => {
     const lo = r - 0.25, hi = r + 0.25;
     return {
@@ -248,22 +244,6 @@ export function ChurnCharts({ stats }: { stats: DatasetStats }) {
               <YAxis tick={{ fontSize: 12 }} />
               <Tooltip formatter={(v: number) => v.toLocaleString()} />
               <Bar dataKey="Orders" fill={COLORS.purple} radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* ── NEW: Revenue by Delivery Status ── */}
-      <Card>
-        <CardHeader><CardTitle className="font-display text-base">Revenue by Delivery Status (₹K)</CardTitle></CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={revenueByStatusData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(30,15%,88%)" />
-              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v}K`} />
-              <YAxis dataKey="status" type="category" tick={{ fontSize: 11 }} width={100} />
-              <Tooltip formatter={(v: number) => `₹${v.toLocaleString()}K`} />
-              <Bar dataKey="Revenue" fill={COLORS.teal} radius={[0, 6, 6, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
