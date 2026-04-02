@@ -293,9 +293,9 @@ export default function ChatbotPage() {
     setIsTyping(true);
 
     let assistantSoFar = '';
-    const chatHistory: ChatMessagePayload[] = [...messages, userMsg]
-      .filter((message) => message.role === 'user' || message.role === 'assistant')
-      .map((message) => ({ role: message.role, content: message.content }));
+    const requestMessages: ChatMessagePayload[] = [
+      { role: 'user', content: userMsg.content },
+    ];
 
     const upsertAssistant = (chunk: string) => {
       assistantSoFar += chunk;
@@ -322,7 +322,7 @@ export default function ChatbotPage() {
     try {
       await streamChat({
         payload: {
-          messages: chatHistory,
+          messages: requestMessages,
           userEmail: userSession?.email,
           sessionId: primarySessionIdRef.current,
           currentPrediction,

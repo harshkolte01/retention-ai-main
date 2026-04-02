@@ -5,7 +5,7 @@ import {
   BarChart3, LogOut, MessageSquare, TrendingDown, TrendingUp, Users, DollarSign,
   Star, Package, Activity, X, ChevronRight, Upload, Brain, FileBarChart2,
   LayoutDashboard, ClipboardList, Target, Lightbulb, AlertCircle, CheckCircle2,
-  TrendingUp as TrendUp, ArrowUpRight, ArrowDownRight, Download, Menu,
+  TrendingUp as TrendUp, ArrowUpRight, ArrowDownRight, Download, Menu, History,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -14,12 +14,29 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { signOut } from '@/lib/localAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { signOut, getSession } from '@/lib/localAuth';
 import { loadDataset, computeStats, preprocessRecords, type CustomerRecord, type DatasetStats } from '@/lib/dataset';
 import { ChurnCharts } from '@/components/ChurnCharts';
 import { PredictionForm } from '@/components/PredictionForm';
 import logoImg from '@/assets/logo.png';
 import Papa from 'papaparse';
+
+type DashboardTab = 'overview' | 'eda' | 'predict' | 'history' | 'insights' | 'data' | 'reports';
+
+interface PredictionHistoryRow {
+  id: string;
+  created_at: string;
+  age: string | null;
+  order_frequency: number | null;
+  price: number | null;
+  loyalty_points: number | null;
+  rating: number | null;
+  delivery_status: string | null;
+  prediction: 'Active' | 'Inactive';
+  confidence: number | null;
+  model_used: string | null;
+}
 
 export default function DashboardPage() {
   const [data, setData] = useState<CustomerRecord[]>([]);
@@ -28,8 +45,11 @@ export default function DashboardPage() {
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [importedData, setImportedData] = useState<CustomerRecord[] | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'predict' | 'insights' | 'data' | 'reports'>('overview');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [dataFilter, setDataFilter] = useState<'All' | 'Active' | 'Churned'>('All');
+  const [historyFilter, setHistoryFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
+  const [predictionHistory, setPredictionHistory] = useState<PredictionHistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -44,7 +64,37 @@ export default function DashboardPage() {
     });
   }, []);
 
-  const goToTab = (tab: 'overview' | 'eda' | 'predict' | 'insights' | 'data' | 'reports', filter?: 'All' | 'Active' | 'Churned') => {
+  useEffect(() => {
+    if (activeTab !== 'history') {
+      return;
+    }
+
+    const userSession = getSession();
+    if (!userSession) {
+      setPredictionHistory([]);
+      setHistoryLoading(false);
+      return;
+    }
+
+    setHistoryLoading(true);
+
+    supabase
+      .from('churn_predictions')
+      .select('id, created_at, age, order_frequency, price, loyalty_points, rating, delivery_status, prediction, confidence, model_used')
+      .eq('user_email', userSession.email)
+      .order('created_at', { ascending: false })
+      .then(({ data: historyRows, error }) => {
+        if (error) {
+          console.error('Failed to load churn history:', error);
+          setPredictionHistory([]);
+        } else {
+          setPredictionHistory((historyRows ?? []) as PredictionHistoryRow[]);
+        }
+        setHistoryLoading(false);
+      });
+  }, [activeTab]);
+
+  const goToTab = (tab: DashboardTab, filter?: 'All' | 'Active' | 'Churned') => {
     setActiveTab(tab);
     if (filter) setDataFilter(filter);
     setTimeout(() => tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -375,10 +425,21 @@ export default function DashboardPage() {
     },
   ];
 
+  const filteredPredictionHistory = predictionHistory.filter((row) =>
+    historyFilter === 'All' ? true : row.prediction === historyFilter,
+  );
+
+  const latestPrediction = predictionHistory[0] ?? null;
+  const averageHistoryConfidence = predictionHistory.length > 0
+    ? predictionHistory.reduce((sum, row) => sum + (row.confidence ?? 0), 0) / predictionHistory.length
+    : 0;
+  const inactivePredictionCount = predictionHistory.filter((row) => row.prediction === 'Inactive').length;
+
   const sidebarItems = [
     { id: 'overview',  icon: LayoutDashboard, label: 'Overview' },
     { id: 'eda',       icon: BarChart3,        label: 'EDA & Charts' },
     { id: 'predict',   icon: Target,           label: 'Predict Churn' },
+    { id: 'history',   icon: History,          label: 'Churn History' },
     { id: 'insights',  icon: Brain,            label: 'AI Insights' },
     { id: 'data',      icon: ClipboardList,    label: 'Dataset' },
     { id: 'reports',   icon: FileBarChart2,    label: 'Reports' },
@@ -515,6 +576,7 @@ export default function DashboardPage() {
                 {[
                   { icon: BarChart3, label: 'EDA & Charts', desc: 'Explore visual analytics', id: 'eda' as const, color: 'text-blue-500' },
                   { icon: Target, label: 'Predict Churn', desc: 'Run churn predictions', id: 'predict' as const, color: 'text-primary' },
+                  { icon: History, label: 'Churn History', desc: 'Review saved predictions', id: 'history' as const, color: 'text-orange-500' },
                   { icon: Brain, label: 'AI Insights', desc: 'Data-driven recommendations', id: 'insights' as const, color: 'text-purple-500' },
                   { icon: FileBarChart2, label: 'Reports', desc: 'Summary & export', id: 'reports' as const, color: 'text-teal-500' },
                 ].map((item) => (
@@ -553,6 +615,126 @@ export default function DashboardPage() {
           )}
 
           {/* ════════════ AI INSIGHTS ════════════ */}
+          {activeTab === 'history' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-orange-100 flex items-center justify-center">
+                  <History className="h-5 w-5 text-orange-600" />
+                </div>
+                <div>
+                  <h2 className="font-display text-xl font-bold">Churn History</h2>
+                  <p className="text-sm text-muted-foreground">Review saved model input values and prediction outputs for this account</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: 'Total Predictions', value: predictionHistory.length.toLocaleString(), color: 'text-blue-600', bg: 'bg-blue-50' },
+                  { label: 'Inactive Outputs', value: inactivePredictionCount.toLocaleString(), color: 'text-red-600', bg: 'bg-red-50' },
+                  { label: 'Avg Confidence', value: `${averageHistoryConfidence.toFixed(1)}%`, color: 'text-orange-600', bg: 'bg-orange-50' },
+                  {
+                    label: 'Latest Output',
+                    value: latestPrediction?.prediction ?? '—',
+                    color: latestPrediction?.prediction === 'Inactive' ? 'text-red-600' : 'text-green-600',
+                    bg: latestPrediction?.prediction === 'Inactive' ? 'bg-red-50' : 'bg-green-50',
+                  },
+                ].map((item) => (
+                  <Card key={item.label}>
+                    <CardContent className={`pt-5 pb-4 px-5 ${item.bg}`}>
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className={`text-2xl font-display font-bold mt-1 ${item.color}`}>{item.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <CardTitle className="font-display">Prediction Log</CardTitle>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {(['All', 'Active', 'Inactive'] as const).map((filter) => (
+                        <button
+                          key={filter}
+                          onClick={() => setHistoryFilter(filter)}
+                          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                            historyFilter === filter
+                              ? filter === 'Active'
+                                ? 'bg-success text-white border-success'
+                                : filter === 'Inactive'
+                                  ? 'bg-destructive text-white border-destructive'
+                                  : 'bg-primary text-white border-primary'
+                              : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                          }`}
+                        >
+                          {filter}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Stored prediction inputs followed by output, confidence, and model name.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {historyLoading ? (
+                    <div className="py-16 text-center text-sm text-muted-foreground">Loading prediction history...</div>
+                  ) : filteredPredictionHistory.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <p className="font-medium text-muted-foreground">No churn history found</p>
+                      <p className="text-sm text-muted-foreground mt-1">Run a prediction from the Predict Churn tab to populate this page.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-auto rounded-lg border border-border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted sticky top-0">
+                          <tr>
+                            {[
+                              'Date',
+                              'Age Group',
+                              'Orders',
+                              'Spend (₹)',
+                              'Rating',
+                              'Delay',
+                              'Loyalty',
+                              'Prediction',
+                              'Confidence',
+                              'Model',
+                            ].map((heading) => (
+                              <th key={heading} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
+                                {heading}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredPredictionHistory.map((row) => (
+                            <tr key={row.id} className="border-t border-border hover:bg-muted/40 transition-colors">
+                              <td className="px-3 py-2 whitespace-nowrap">{new Date(row.created_at).toLocaleString()}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{row.age ?? '—'}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{row.order_frequency ?? '—'}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{row.price !== null ? `₹${Number(row.price).toLocaleString()}` : '—'}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{row.rating ?? '—'}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{row.delivery_status ?? '—'}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{row.loyalty_points ?? '—'}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  row.prediction === 'Active' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
+                                }`}>{row.prediction}</span>
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap">{row.confidence !== null ? `${Number(row.confidence).toFixed(1)}%` : '—'}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{row.model_used ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
           {activeTab === 'insights' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
               <div className="flex items-center gap-3">

@@ -58,6 +58,13 @@ function RiskBadge({ level }: { level: 'HIGH' | 'MEDIUM' | 'LOW' }) {
 
 const AGE_GROUPS = ['Young Adult (18-25)', 'Adult (26-40)', 'Middle Age (41-55)', 'Senior (56+)'];
 
+function getDeliveryDelayLabel(delay: number): string {
+  if (delay <= 0) return 'On-time (0 mins)';
+  if (delay <= 10) return `Slight delay (${delay} mins)`;
+  if (delay <= 30) return `Late (${delay} mins)`;
+  return `Very late (${delay} mins)`;
+}
+
 export function PredictionForm() {
   const navigate = useNavigate();
   const [orders, setOrders]         = useState(20);
@@ -127,6 +134,7 @@ export function PredictionForm() {
           price: predictionInput.totalSpend,
           rating: predictionInput.rating,
           loyalty_points: predictionInput.loyaltyPoints,
+          delivery_status: getDeliveryDelayLabel(predictionInput.deliveryDelayMinutes),
           prediction: (res.riskLevel === 'LOW' ? 'Active' : 'Inactive') as 'Active' | 'Inactive',
           confidence: res.confidence,
           model_used: 'Rule-Based Ensemble',
